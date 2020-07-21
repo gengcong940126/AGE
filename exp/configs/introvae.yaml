@@ -6,4 +6,45 @@ train_introvae:
     test
 
 
+train_autoencoder:
+  args:
+    num_gpus: 1
+  start:
+    name: "do_train"
+    dataset_name: "imagenet"
+    IMS_PER_BATCH: 32
+    ASPECT_RATIO_GROUPING: false
+    NUM_WORKERS: 0
+    dataset_mapper:
+      name: "ImageNetDatasetMapper"
+      img_size: 256
+    max_epoch: 200
+    checkpoint_period: "10*iter_every_epoch"
+  trainer:
+    name: 'AutoEncoderTrainer'
+    ngpu: 1
+  encoder:
+    name: "Encoder"
+    ndf: 64
+    padding_type: "reflect"
+    use_dropout: false
+    use_bias: false
+#    nemb: 512
+#    nemb: 128
+    nemb: 1024
+    embedding: "sphere"
+  decoder:
+    name: "Decoder"
+#    nemb: 512
+#    nemb: 128
+    nemb: 1024
+    ngf: 64
+    padding_type: "reflect"
+    use_dropout: false
+    use_bias: false
+    nc: 3
+  optimizer:
+    lr: 0.0001
+    beta1: 0
+    beta2: 0.999
 

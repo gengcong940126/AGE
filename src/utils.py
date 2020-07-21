@@ -77,12 +77,14 @@ def setup_dataset(opt, train=True, shuffle=True, drop_last=True):
     # ])
     if opt.dataset=='mnist':
         t = transforms.Compose([
+            transforms.CenterCrop(opt.image_size),
             transforms.Scale([opt.image_size, opt.image_size]),
             transforms.ToTensor(),
             transforms.Normalize((0.5,), (0.5,)),
         ])
     else:
         t = transforms.Compose([
+            transforms.CenterCrop(opt.image_size),
             transforms.Scale([opt.image_size, opt.image_size]),
             transforms.ToTensor(),
             transforms.Normalize(

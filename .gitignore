@@ -20,3 +20,4 @@ _cache_homemachlearndatalsunbedroombedroomvallmdb
 _cache_homemachlearnkeraslsunbedroombedroomvallmdb
 latent_3d_points/external/structural_losses/tf_approxmatch_g.cu.o
 latent_3d_points/external/structural_losses/tf_nndistance_g.cu.o
+datasets/imagenet

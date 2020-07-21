@@ -15,7 +15,7 @@ import src.losses as losses
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=False, default='imagenet',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default=os.path.expanduser('~/user/code/AEGAN/data/imagenet'))
+parser.add_argument('--dataroot', type=str, help='path to dataset',default=os.path.expanduser('~/user/code/AEGAN/data/raw/imagenet'))
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
