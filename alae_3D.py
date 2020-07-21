@@ -4,8 +4,9 @@ import torch
 import torch.nn.parallel
 from tensorboardX import SummaryWriter
 import torch.optim as optim
-import src.utils
 import matplotlib.pyplot as plt
+from latent_3d_points.src import general_utils
+
 import shutil
 import torchvision.utils as vutils
 from torch.autograd import Variable
@@ -13,23 +14,27 @@ from src.utils import *
 import src.losses as losses
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='cifar10',
+parser.add_argument('--dataset', required=False, default='celeba',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
+parser.add_argument('--data_type', required=False, default='swiss_roll',
+                    help='ball| swiss_roll ')
 parser.add_argument('--dataroot', type=str, help='path to dataset',default='./data')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
-                    default=64, help='batch size')
-parser.add_argument('--image_size', type=int, default=32,
+                    default=5000, help='batch size')
+parser.add_argument('--image_size', type=int, default=64,
                     help='the resolution of the input image to network')
-parser.add_argument('--nz', type=int, default=32,
+parser.add_argument('--nz', type=int, default=2,
                     help='size of the latent z vector')
+parser.add_argument('--nemb', type=int, default=2,
+                    help='size of the latent embedding')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nc', type=int,default=3)
 parser.add_argument('--reg', type=int,default=0.2)
 
-parser.add_argument('--nepoch', type=int, default=500,
+parser.add_argument('--nepoch', type=int, default=150,
                     help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002,
                     help='learning rate, default=0.0002')
@@ -40,17 +45,17 @@ parser.add_argument('--cpu', action='store_true',
 parser.add_argument('--ngpu', type=int, default=1,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='dcgan32px',
+parser.add_argument('--netG', default='fcgan3D',
                     help="path to netG config")
-parser.add_argument('--netE', default='dcgan32px',
+parser.add_argument('--netE', default='fcgan3D',
                     help="path to netE config")
-parser.add_argument('--netg', default='dcgan32px',
+parser.add_argument('--netg', default='fcgan3D',
                     help="path to netg config")
-parser.add_argument('--nete', default='dcgan32px',
+parser.add_argument('--nete', default='fcgan3D',
                     help="path to nete config")
 parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
-parser.add_argument('--netd', default='dcgan32px',
+parser.add_argument('--netd', default='dcgan64px',
                     help="path to netd config")
 parser.add_argument('--netG_chp', default='',
                     help="path to netG (to continue training)")
@@ -65,14 +70,15 @@ parser.add_argument('--nete_chp', default='',
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_AEGAN_acai_latent_normal',
+parser.add_argument('--save_dir', default='./results_3D/alae',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
 parser.add_argument('--KL', default='qp', help='pq|qp')
 parser.add_argument('--noise', default='normal', help='normal|sphere')
+parser.add_argument('--embedding', default='normal', help='normal|sphere')
 parser.add_argument('--match_z', default='L2', help='none|L1|L2|cos')
-parser.add_argument('--match_x', default='L1', help='none|L1|L2|cos')
+parser.add_argument('--match_x', default='L2', help='none|L1|L2|cos')
 
 parser.add_argument('--drop_lr', default=40, type=int, help='')
 parser.add_argument('--save_every', default=50, type=int, help='')
@@ -102,21 +108,21 @@ parser.add_argument(
     '--g_updates', default="1;KL_fake:1,match_z:10,match_x:0",
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
+
 opt = parser.parse_args()
-os.makedirs('./results_AEGAN_acai_latent_normal',exist_ok=True)
-os.makedirs('./results_AEGAN_acai_latent_normal/tb',exist_ok=True)
-writer=SummaryWriter(log_dir='./results_AEGAN_acai_latent_normal/tb')
-if 'PORT' not in os.environ:
-    os.environ['PORT'] = '6006'
-if 'CUDA_VISIBLE_DEVICES' not in os.environ:
-      os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.makedirs('./results_3D/alae',exist_ok=True)
+os.makedirs('./results_3D/alae/tb',exist_ok=True)
+writer=SummaryWriter(log_dir='./results_3D/alae/tb')
+
+
+
 # Setup cudnn, seed, and parses updates string.
 updates = setup(opt)
 
 # Setup dataset
-dataloader = dict(train=setup_dataset(opt, train=True),
-                  val=setup_dataset(opt, train=False))
-
+#dataloader = dict(train=setup_dataset(opt, train=True),
+                  #val=setup_dataset(opt, train=False))
+pclouds=data_load(opt)
 # Load generator
 netG = load_G(opt)
 
@@ -126,18 +132,10 @@ netE = load_E(opt)
 # Load generator_latent
 netg = load_g(opt).to('cuda')
 
-# Load encoder_latent
-nete = load_e(opt).to('cuda')
 
 netD = load_D(opt).to('cuda')
-
-netd = load_d(opt).to('cuda')
-
-x = torch.FloatTensor(opt.batch_size, opt.nc,
-                      opt.image_size, opt.image_size)
-x2 = torch.FloatTensor(opt.batch_size, opt.nc,
-                      opt.image_size, opt.image_size)
-z = torch.FloatTensor(opt.batch_size, opt.nz, 1, 1)
+x = torch.FloatTensor(5000,opt.nc)
+z = torch.FloatTensor(5000, opt.nz, 1, 1)
 fixed_z = torch.FloatTensor(opt.batch_size, opt.nz, 1, 1).normal_(0, 1)
 
 if opt.noise == 'sphere':
@@ -147,21 +145,17 @@ if opt.cuda:
     netE.cuda()
     netG.cuda()
     x = x.cuda()
-    x2=x2.cuda()
     z, fixed_z = z.cuda(), fixed_z.cuda()
 
-x = Variable(x)
+x = Variable(x,requires_grad=True)
 z = Variable(z)
-x2 = Variable(x2)
 fixed_z = Variable(fixed_z)
 
 # Setup optimizers
 optimizerE = optim.Adam(netE.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerg = optim.Adam(netg.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizere = optim.Adam(nete.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizerd = optim.Adam(netd.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
 # Setup criterions
 if opt.criterion == 'param':
@@ -179,48 +173,52 @@ real_cpu = torch.FloatTensor()
 
 
 def save_images(epoch):
-
+    z2 = torch.FloatTensor(5000, opt.nz, 1, 1).normal_(0, 1).cuda()
+    if opt.noise == 'sphere':
+        normalize_(z2)
+    fig = plt.figure(figsize=(5 * 4, 5 * 1))
+    fig.tight_layout()
+    ori_ax = fig.add_subplot(1, 4, 1, projection='3d')
     real_cpu.resize_(x.data.size()).copy_(x.data)
-
-    # Real samples
-    save_path = '%s/real_samples.png' % opt.save_dir
-    vutils.save_image(real_cpu[:64]/2+0.5 , save_path)
-
+    general_utils.plot_3d_point_cloud(real_cpu.squeeze().cpu().numpy()[:, 0],
+                        real_cpu.squeeze().cpu().numpy()[:, 1],
+                        real_cpu.squeeze().cpu().numpy()[:, 2],
+                        axis=ori_ax, in_u_sphere=False, show=False, alpha=0.1)
+    ori_ax.set_title('original')
+    gen_ax = fig.add_subplot(1, 4, 2, projection='3d')
     netG.eval()
     netg.eval()
-    populate_z(z, opt)
-    fake = netG(netg(z.squeeze()))
-
-    # Fake samples
-    save_path = '%s/fake_samples_epoch_%03d.png' % (opt.save_dir, epoch)
-    vutils.save_image(fake.data[:64]/2+0.5 , save_path)
-
+    fake = netG(netg(z2.squeeze()))
+    general_utils.plot_3d_point_cloud(fake.detach().cpu().numpy()[:, 0],
+                                      fake.detach().cpu().numpy()[:, 1],
+                                      fake.detach().cpu().numpy()[:, 2],
+                                      axis=gen_ax, in_u_sphere=False, show=False, alpha=0.1)
+    gen_ax.set_title('generate')
     # Save reconstructions
+    #populate_x(x, dataloader['val'])
     netE.eval()
-    populate_x(x, dataloader['val'])
-    populate_x(x2, dataloader['val'])
-    alpha = torch.rand(x.shape[0], 1).cuda()
-    alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
-    encode_mix = alpha * netE(x) + (1 - alpha) * netE(x2)
-    if opt.noise == 'sphere':
-        normalize(encode_mix)
-    x_alpha = netG(encode_mix)
-    save_path = '%s/interpolate_samples_epoch_%03d.png' % (opt.save_dir, epoch)
-    vutils.save_image(x_alpha.data[:64] / 2 + 0.5, save_path)
+    netD.eval()
+    GEx = netG((netE(x)))
+    recon_ax = fig.add_subplot(1, 4, 3, projection='3d')
+    general_utils.plot_3d_point_cloud(GEx.detach().cpu().numpy()[:, 0],
+                                      GEx.detach().cpu().numpy()[:, 1],
+                                      GEx.detach().cpu().numpy()[:, 2],
+                                      axis=recon_ax, in_u_sphere=False, show=False, alpha=0.1)
+    recon_ax.set_title('recon')
+    fig.savefig("%s/fig_epoch_%03d.png" % (opt.save_dir, epoch))
+    fig2 = plt.figure(figsize=(5 * 3, 5 * 1))
+    fig2.tight_layout()
+    ax1= fig2.add_subplot(131)
+    gz=netg(z2.squeeze()).cpu().detach().numpy()
+    sc1 = ax1.scatter(gz[:, 0], gz[:, 1], s=10)
 
-    gex = netG(netE(x))
+    ax1.set_title('gz')
+    ax2 = fig2.add_subplot(132)
+    Ex = netE(x).cpu().detach().numpy()
+    sc2 = ax2.scatter(Ex[:, 0], Ex[:, 1], s=10)
 
-    t = torch.FloatTensor(x.size(0) * 2, x.size(1),
-                          x.size(2), x.size(3))
-
-    t[0::2] = x.data[:]
-    t[1::2] = gex.data[:]
-
-    save_path = '%s/reconstructions_epoch_%03d.png' % (opt.save_dir, epoch)
-    grid = vutils.save_image(t[:64]/2+0.5 , save_path)
-    netG.train()
-    netg.train()
-    netE.train()
+    ax2.set_title('Ex')
+    fig2.savefig("%s/figemb_epoch_%03d.png" % (opt.save_dir, epoch))
 def adjust_lr(epoch):
     if epoch % opt.drop_lr == (opt.drop_lr - 1):
         opt.lr /= 2
@@ -230,7 +228,7 @@ def adjust_lr(epoch):
         for param_group in optimizerG.param_groups:
             param_group['lr'] = opt.lr
 
-        for param_group in optimizere.param_groups:
+        for param_group in optimizerE.param_groups:
             param_group['lr'] = opt.lr
 
         for param_group in optimizerg.param_groups:
@@ -293,136 +291,71 @@ for epoch in range(opt.start_epoch, opt.nepoch):
     # Adjust learning rate
     adjust_lr(epoch)
 
-    for i in range(len(dataloader['train'])):
+    for i in range(500):
         batches_done=batches_done+1
         # ---------------------------
-        #        Optimize over d
+        #        Optimize over D,E
         # ---------------------------
-        for d_iter in range(updates['d']['num_updates']):
-            netd.zero_grad()
-            populate_x(x, dataloader['train'])
-            populate_x(x2, dataloader['train'])
-            encode1=netE(x)
-            encode2=netE(x2)
-            alpha=torch.rand(x.shape[0],1).cuda()
-            alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
-            encode_mix = alpha * encode1 + (1 - alpha) * encode2
-            if opt.noise == 'sphere':
-                encode_mix=normalize(encode_mix)
-            x_alpha = netG(encode_mix)
-            AE = netG(encode1)
-            loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()).pow(2))
-            loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))).pow(2))
-            #loss_ae_disc = torch.mean(torch.square(netd(x_alpha)))
-            d_loss=loss_disc+loss_disc_real
-            stats['d_loss'] = d_loss
-            d_loss.backward()
-            optimizerd.step()
+        netE.zero_grad()
+        netD.zero_grad()
+        # X
+        populate_x_3D(x, pclouds)
+        # E(X)
+        Ex = netE(x)
+        DEx = netD(Ex)
+        populate_z(z, opt)
+        DEGg=netD(netE(netG(netg(z.squeeze()))))
+        loss = (F.softplus(DEGg) + F.softplus(-DEx))
+        real_loss = DEx.sum()
+        real_grads = torch.autograd.grad(real_loss, x,create_graph=True, retain_graph=True)[0]
+        r1_penalty = torch.sum(real_grads.pow(2.0), dim=1)
+        d_loss = (loss + r1_penalty * (10 * 0.5)).mean()
+        stats['d_loss']=d_loss
+        d_loss.backward()
+        optimizerD.step()
+        optimizerE.step()
         # ---------------------------
-        #        Optimize over AE
+        #        Optimize g,G
         # ---------------------------
-        for ae_iter in range(updates['G']['num_updates']):
-            #AE_losses = []
-            netE.zero_grad()
-            netG.zero_grad()
-            # X
-            #populate_x(x, dataloader['train'])
-            # E(X)
-            #Ex = netE(x)
-            #GEx = netG(Ex)
-            loss_ae_disc = torch.mean((netd(x_alpha)).pow(2))
-            err = match(AE, x, opt.match_x)
-            AE_loss=err+0.5*loss_ae_disc
-            stats['AE_loss'] = AE_loss
-            AE_loss.backward()
-            optimizerE.step()
-            optimizerG.step()
-
-
+        netG.zero_grad()
+        netg.zero_grad()
+        # z
+        populate_z(z, opt)
+        DEGg=netD(netE(netG(netg(z.squeeze()))))
+        g_loss=F.softplus(-DEGg).mean()
+        stats['g_loss'] = g_loss
+        g_loss.backward()
+        optimizerG.step()
+        optimizerg.step()
         # ---------------------------
-        #        Optimize over D
+        #        Optimize E,G
         # ---------------------------
 
-        for D_iter in range(updates['D']['num_updates']):
-            netD.zero_grad()
-
-            # X
-            populate_x(x, dataloader['train'])
-            populate_x(x2, dataloader['train'])
-            #E(x1),E(x2)
-            encode1 = netE(x)
-            D_real = netD(encode1)
-            encode2 = netE(x2)
-            alpha = torch.rand(x.shape[0],3, 1).cuda()
-            alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
-            encode_mix = alpha * encode1.unsqueeze(1) + (1 - alpha) * encode2.unsqueeze(1)
-            encode_mix=encode_mix.view(-1,opt.nz)
-            if opt.noise == 'sphere':
-                encode_mix = normalize(encode_mix)
-            # Z
-            D_mix=netD(encode_mix)
-            D_real_all = torch.cat([D_real,D_mix],0)
-            populate_z(z, opt)
-            D_fake = netD(netg(z.squeeze()).detach())
-            loss_disc = torch.mean((D_mix - alpha.view(-1,1)).pow(2))+torch.mean((D_fake - 1).pow(2))
-            loss_disc_real = torch.mean(D_real.pow(2))
-            D_loss=loss_disc+loss_disc_real
-            #r_logit_mean, f_logit_mean, D_loss = hinge_loss_discriminator(r_logit=D_real_all, f_logit=D_fake)
-            # Save some stats
-            stats['D_loss'] = D_loss
-
-            D_loss.backward()
-            optimizerD.step()
-
-        # ---------------------------
-        #        Minimize over  g e
-        # ---------------------------
-
-        for g_iter in range(updates['G']['num_updates']):
-            #netE.zero_grad()
-            netg.zero_grad()
-            nete.zero_grad()
-
-            # Z
-            populate_z(z, opt)
-            # Gg(Z)
-            g_fake = netD(netg((z.squeeze())))
-            # X
-            #populate_x(x, dataloader['train'])
-            # E(X)
-            #Ex = netE(x)
-            #g_real = netD(Ex)
-            #G_f_logit_mean, g_loss = hinge_loss_generator2(f_logit=g_fake)
-            g_loss=torch.mean(g_fake.pow(2))
-            egz=nete(netg(z.squeeze()))
-            #err = match(egz, z, opt.match_z)
-            g_loss=g_loss
-            stats['g_loss'] = g_loss
-            #stats['err'] = err
-            # Step g
-            g_loss.backward()
-            #optimizerE.step()
-            optimizerg.step()
-            optimizere.step()
-
+        netE.zero_grad()
+        netG.zero_grad()
+        populate_z(z, opt)
+        EGg=netE(netG(netg(z.squeeze())))
+        lae=match(netg(z.squeeze()), EGg, opt.match_z)
+        stats['lae'] = lae*1000
+        lae.backward()
+        optimizerG.step()
+        optimizerE.step()
 
 
         print('[{epoch}/{nepoch}][{iter}/{niter}] '
-              'D_loss/g_loss: {D_loss:.3f}/{g_loss:.3f} '
-              'AE_loss: {AE_loss:.3f}'
-              'd_loss: {d_loss:.3f}'
+              'd_loss/g_loss: {d_loss:.5f}/{g_loss:.5f} '
+              'lae: {lae:.5f}'
               ''.format(epoch=epoch,
                         nepoch=opt.nepoch,
                         iter=i,
-                        niter=len(dataloader['train']),
+                        niter=500,
                         **stats))
 
         if i % opt.save_every == 0:
-            print(batches_done)
-            writer.add_scalar('d_loss', stats['d_loss'], batches_done)
-            writer.add_scalar('AE_loss', stats['AE_loss'], batches_done)
-            writer.add_scalar('D_loss',stats['D_loss'],batches_done)
+            writer.add_scalar('d_loss',stats['d_loss'],batches_done)
             writer.add_scalar('g_loss', stats['g_loss'], batches_done)
+            writer.add_scalar('lae', stats['lae'], batches_done)
+
 
         if i % opt.save_every == 0:
             save_images(epoch)
@@ -438,8 +371,6 @@ for epoch in range(opt.start_epoch, opt.nepoch):
     # do checkpointing
     torch.save(netG, '%s/netG_epoch_%d.pth' % (opt.save_dir, epoch))
     torch.save(netE, '%s/netE_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(nete, '%s/nete_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netg, '%s/netg_epoch_%d.pth' % (opt.save_dir, epoch))
     torch.save(netD, '%s/netD_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netd, '%s/netd_epoch_%d.pth' % (opt.save_dir, epoch))
+    torch.save(netg, '%s/netg_epoch_%d.pth' % (opt.save_dir, epoch))
 

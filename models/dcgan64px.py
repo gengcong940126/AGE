@@ -3,7 +3,7 @@
 # from __future__ import print_function
 # from __future__ import unicode_literals
 import torch.nn as nn
-from .base import _netE_Base, _netG_Base
+from .base import _netE_Base, _netG_Base,_netd_Base, vae_netE_Base,vaegan_netd_Base
 # ------------------------
 #         E
 # ------------------------
@@ -13,7 +13,7 @@ def _netE(opt):
     ndf = opt.ndf
     nc = opt.nc
     nz = opt.nz
-
+    nemb = opt.nemb
     main = nn.Sequential(
         # input is (nc) x 64 x 64
         nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
@@ -31,11 +31,40 @@ def _netE(opt):
         nn.BatchNorm2d(ndf * 8),
         nn.LeakyReLU(0.2, inplace=True),
         # state size. (ndf*8) x 4 x 4
-        nn.Conv2d(ndf * 8, nz, 4, 1, 0, bias=True),
+        nn.Conv2d(ndf * 8, nemb, 4, 1, 0, bias=True),
     )
 
     return _netE_Base(opt, main)
 
+#------------------------
+#         vae_E
+# ------------------------
+def vae_netE(opt):
+    ndf = opt.ndf
+    nc = opt.nc
+    nz = opt.nz
+    nemb = opt.nemb
+    main = nn.Sequential(
+        # input is (nc) x 64 x 64
+        nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf) x 16 x 16
+        nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 2),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*2) x 8 x 8
+        nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 4),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*4) x 4 x 4
+        nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 8),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*8) x 4 x 4
+        nn.Conv2d(ndf * 8,  400 , 4, 1, 0, bias=True),
+    )
+
+    return vae_netE_Base(opt, main)
 # ------------------------
 #         G
 # ------------------------
@@ -45,10 +74,10 @@ def _netG(opt):
     ngf = opt.ngf
     nc = opt.nc
     nz = opt.nz
-
+    nemb = opt.nemb
     main = nn.Sequential(
         # input is Z, going into a convolution
-        nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
+        nn.ConvTranspose2d(nemb, ngf * 8, 4, 1, 0, bias=False),
         nn.BatchNorm2d(ngf * 8),
         nn.ReLU(True),
         # state size. (ngf*8) x 4 x 4
@@ -70,3 +99,58 @@ def _netG(opt):
     )
 
     return _netG_Base(opt, main)
+
+def _netd(opt):
+    ndf = opt.ndf
+    nc = opt.nc
+    nz = opt.nz
+
+    main = nn.Sequential(
+        # input is (nc) x 64 x 64
+        nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf) x 16 x 16
+        nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 2),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*2) x 8 x 8
+        nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 4),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*4) x 4 x 4
+        nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 8),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*8) x 4 x 4
+        nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=True),
+    )
+
+    return _netd_Base(opt, main)
+
+def vaegan_netd(opt):
+    ndf = opt.ndf
+    nc = opt.nc
+    nz = opt.nz
+
+    main1 = nn.Sequential(
+        # input is (nc) x 64 x 64
+        nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf) x 16 x 16
+        nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 2),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*2) x 8 x 8
+        nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 4),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*4) x 4 x 4
+        nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+    )
+    main2 = nn.Sequential(nn.BatchNorm2d(ndf * 8),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*8) x 4 x 4
+        nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=True),
+    )
+
+    return vaegan_netd_Base(opt, main1,main2)

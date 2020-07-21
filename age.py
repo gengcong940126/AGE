@@ -4,17 +4,18 @@ import torch
 import torch.nn.parallel
 
 import torch.optim as optim
+import matplotlib.pyplot as plt
 import torchvision.utils as vutils
 from torch.autograd import Variable
 from src.utils import *
 import src.losses as losses
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=True,
+parser.add_argument('--dataset', required=False, default='cifar10',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset')
+parser.add_argument('--dataroot', type=str, help='path to dataset',default='./data')
 parser.add_argument('--workers', type=int,
-                    help='number of data loading workers', default=8)
+                    help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
                     default=64, help='batch size')
 parser.add_argument('--image_size', type=int, default=32,
@@ -23,9 +24,11 @@ parser.add_argument('--nz', type=int, default=100,
                     help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
-parser.add_argument('--nc', type=int)
-
-parser.add_argument('--nepoch', type=int, default=25,
+parser.add_argument('--nc', type=int,default=3)
+parser.add_argument('--nemb', type=int, default=100,
+                    help='size of the latent embedding')
+parser.add_argument('--embedding', default='sphere', help='normal|sphere')
+parser.add_argument('--nepoch', type=int, default=50,
                     help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002,
                     help='learning rate, default=0.0002')
@@ -36,16 +39,17 @@ parser.add_argument('--cpu', action='store_true',
 parser.add_argument('--ngpu', type=int, default=1,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='',
+parser.add_argument('--netG', default='dcgan32px',
                     help="path to netG config")
-parser.add_argument('--netE', default='',
+parser.add_argument('--netE', default='dcgan32px',
                     help="path to netE config")
+#./results/netG_epoch_499.pth
 parser.add_argument('--netG_chp', default='',
                     help="path to netG (to continue training)")
 parser.add_argument('--netE_chp', default='',
                     help="path to netE (to continue training)")
 
-parser.add_argument('--save_dir', default='.',
+parser.add_argument('--save_dir', default='./results/age_offi',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -59,19 +63,30 @@ parser.add_argument('--save_every', default=50, type=int, help='')
 
 parser.add_argument('--manual_seed', type=int, default=123, help='manual seed')
 parser.add_argument('--start_epoch', type=int, default=0, help='epoch number to start with')
-
 parser.add_argument(
-    '--e_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:0",
+    '--D_updates', default="5;KL_fake:1,KL_real:1,match_z:0,match_x:10",
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 
 parser.add_argument(
-    '--g_updates', default="2;KL_fake:1,match_z:1,match_x:0",
+    '--G_updates', default="1;KL_fake:1,match_z:10,match_x:0",
+    help='Update plan for generator <number of updates>;[<term:weight>]'
+)
+parser.add_argument(
+    '--e_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:0",
+    help='Update plan for encoder <number of updates>;[<term:weight>]'
+)
+parser.add_argument(
+    '--d_updates', default="5;KL_fake:1,KL_real:1,match_z:0,match_x:10",
+    help='Update plan for encoder <number of updates>;[<term:weight>]'
+)
+parser.add_argument(
+    '--g_updates', default="2;KL_fake:1,match_z:1000,match_x:0",
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 
 opt = parser.parse_args()
-
+os.makedirs('./results/age_offi',exist_ok=True)
 # Setup cudnn, seed, and parses updates string.
 updates = setup(opt)
 
@@ -128,14 +143,14 @@ def save_images(epoch):
 
     # Real samples
     save_path = '%s/real_samples.png' % opt.save_dir
-    vutils.save_image(real_cpu[:64] / 2 + 0.5, save_path)
+    vutils.save_image(real_cpu[:64]/2+0.5 , save_path)
 
     netG.eval()
     fake = netG(fixed_z)
 
     # Fake samples
     save_path = '%s/fake_samples_epoch_%03d.png' % (opt.save_dir, epoch)
-    vutils.save_image(fake.data[:64] / 2 + 0.5, save_path)
+    vutils.save_image(fake.data[:64]/2+0.5 , save_path)
 
     # Save reconstructions
     populate_x(x, dataloader['val'])
@@ -148,7 +163,7 @@ def save_images(epoch):
     t[1::2] = gex.data[:]
 
     save_path = '%s/reconstructions_epoch_%03d.png' % (opt.save_dir, epoch)
-    grid = vutils.save_image(t[:64] / 2 + 0.5, save_path)
+    grid = vutils.save_image(t[:64]/2+0.5 , save_path)
 
     netG.train()
 
@@ -161,8 +176,36 @@ def adjust_lr(epoch):
 
         for param_group in optimizerG.param_groups:
             param_group['lr'] = opt.lr
+def plot_embedding(data,dir):
+    fig = plt.figure()
+    ax = plt.subplot(111)
+    # for i in range(data.shape[0]):
+    sc = plt.scatter(data[:, 0], data[:, 1], s=10)
+    c1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    plt.xticks([])
+    plt.yticks([])
+    #handles = [plt.plot([], color=sc.get_cmap()(sc.norm(c)), ls="", marker="o")[0] for c in c1]
+    # c=[c for c in label]
+    #plt.legend(handles, c1)
+    # fig.show()
+    fig.savefig("%s/latent" % (dir))
+    return fig
 
-
+def test_embedding(netE,netG):
+    netE.eval()
+    netG.eval()
+    #populate_x(x, dataloader['train'])
+    idx = torch.randperm(dataloader['train'].__len__())
+    x=dataloader['val'].next().float()/255
+    x = x.permute(0, 3, 1, 2)
+    for i in range(len(dataloader['val'])-1):
+        real_cpu = dataloader['val'].next().float()/255
+        real_cpu=real_cpu.permute(0,3,1,2)
+        x=torch.cat((x,real_cpu),0)
+    ex = netE(x.cuda())
+    plot_embedding(ex.cpu().detach().numpy(), dir='./results')
+    exit(0)
+#test_embedding(netE,netG)
 stats = {}
 for epoch in range(opt.start_epoch, opt.nepoch):
 
@@ -199,11 +242,11 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             # Save some stats
             stats['real_mean'] = KL_minimizer.samples_mean.data.mean()
             stats['real_var'] = KL_minimizer.samples_var.data.mean()
-            stats['KL_real'] = KL_real.data[0]
+            stats['KL_real'] = KL_real.data
 
             # ================================================
 
-            # Z
+            #
             populate_z(z, opt)
             # g(Z)
             fake = netG(z).detach()
@@ -222,7 +265,7 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             # Save some stats
             stats['fake_mean'] = KL_maximizer.samples_mean.data.mean()
             stats['fake_var'] = KL_maximizer.samples_var.data.mean()
-            stats['KL_fake'] = -KL_fake.data[0]
+            stats['KL_fake'] = -KL_fake.data
 
             # Update e
             sum(e_losses).backward()
@@ -296,3 +339,4 @@ for epoch in range(opt.start_epoch, opt.nepoch):
     # do checkpointing
     torch.save(netG, '%s/netG_epoch_%d.pth' % (opt.save_dir, epoch))
     torch.save(netE, '%s/netE_epoch_%d.pth' % (opt.save_dir, epoch))
+

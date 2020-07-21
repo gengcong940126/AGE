@@ -13,17 +13,19 @@ from src.utils import *
 import src.losses as losses
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='cifar10',
+parser.add_argument('--dataset', required=False, default='imagenet',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default='./data')
+parser.add_argument('--dataroot', type=str, help='path to dataset',default=os.path.expanduser('~/user/code/AEGAN/data/imagenet'))
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
-                    default=64, help='batch size')
-parser.add_argument('--image_size', type=int, default=32,
+                    default=32, help='batch size')
+parser.add_argument('--image_size', type=int, default=256,
                     help='the resolution of the input image to network')
-parser.add_argument('--nz', type=int, default=32,
+parser.add_argument('--nz', type=int, default=512,
                     help='size of the latent z vector')
+parser.add_argument('--nemb', type=int, default=512,
+                    help='size of the latent embedding')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nc', type=int,default=3)
@@ -33,16 +35,16 @@ parser.add_argument('--nepoch', type=int, default=500,
                     help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002,
                     help='learning rate, default=0.0002')
-parser.add_argument('--beta1', type=float, default=0.5,
+parser.add_argument('--beta1', type=float, default=0,
                     help='beta1 for adam. default=0.5')
 parser.add_argument('--cpu', action='store_true',
                     help='use CPU instead of GPU')
-parser.add_argument('--ngpu', type=int, default=1,
+parser.add_argument('--ngpu', type=int, default=4,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='dcgan32px',
+parser.add_argument('--netG', default='dcgan256px',
                     help="path to netG config")
-parser.add_argument('--netE', default='dcgan32px',
+parser.add_argument('--netE', default='dcgan256px',
                     help="path to netE config")
 parser.add_argument('--netg', default='dcgan32px',
                     help="path to netg config")
@@ -50,8 +52,9 @@ parser.add_argument('--nete', default='dcgan32px',
                     help="path to nete config")
 parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
-parser.add_argument('--netd', default='dcgan32px',
+parser.add_argument('--netd', default='dcgan256px',
                     help="path to netd config")
+#'./results_volcano/AEGAN_acai_256/netG_epoch_49.pth'
 parser.add_argument('--netG_chp', default='',
                     help="path to netG (to continue training)")
 parser.add_argument('--netD_chp', default='',
@@ -65,23 +68,24 @@ parser.add_argument('--nete_chp', default='',
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_AEGAN2',
+parser.add_argument('--save_dir', default='./results_volcano/AEGAN_acai_1024',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
 parser.add_argument('--KL', default='qp', help='pq|qp')
 parser.add_argument('--noise', default='sphere', help='normal|sphere')
+parser.add_argument('--embedding', default='sphere', help='normal|sphere')
 parser.add_argument('--match_z', default='L2', help='none|L1|L2|cos')
 parser.add_argument('--match_x', default='L1', help='none|L1|L2|cos')
 
 parser.add_argument('--drop_lr', default=40, type=int, help='')
-parser.add_argument('--save_every', default=50, type=int, help='')
+parser.add_argument('--save_every', default=250, type=int, help='')
 
 parser.add_argument('--manual_seed', type=int, default=123, help='manual seed')
 parser.add_argument('--start_epoch', type=int, default=0, help='epoch number to start with')
 
 parser.add_argument(
-    '--D_updates', default="5;KL_fake:1,KL_real:1,match_z:0,match_x:10",
+    '--D_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:10",
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 
@@ -90,11 +94,11 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
-    '--e_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:10",
+    '--e_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:0",
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
-    '--d_updates', default="5;KL_fake:1,KL_real:1,match_z:0,match_x:10",
+    '--d_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:10",
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 
@@ -103,12 +107,11 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 opt = parser.parse_args()
-os.makedirs('./results_AEGAN2',exist_ok=True)
-os.makedirs('./results_AEGAN2/tb',exist_ok=True)
-writer=SummaryWriter(log_dir='./results_AEGAN2/tb')
-if 'PORT' not in os.environ:
-    os.environ['PORT'] = '6008'
+os.makedirs('./results_volcano/AEGAN_acai2_256',exist_ok=True)
+os.makedirs('./results_volcano/AEGAN_acai2_256/tb',exist_ok=True)
+writer=SummaryWriter(log_dir='./results_volcano/AEGAN_acai2_256/tb')
 
+#export CUDA_VISIBLE_DEVICES = 0,1,2
 # Setup cudnn, seed, and parses updates string.
 updates = setup(opt)
 
@@ -185,8 +188,9 @@ def save_images(epoch):
     save_path = '%s/real_samples.png' % opt.save_dir
     vutils.save_image(real_cpu[:64]/2+0.5 , save_path)
 
-    netG.eval()
-    netg.eval()
+    #netG.eval()
+    #netg.eval()
+
     populate_z(z, opt)
     fake = netG(netg(z.squeeze()))
 
@@ -195,13 +199,13 @@ def save_images(epoch):
     vutils.save_image(fake.data[:64]/2+0.5 , save_path)
 
     # Save reconstructions
-    netE.eval()
+    #netE.eval()
     populate_x(x, dataloader['val'])
     populate_x(x2, dataloader['val'])
     alpha = torch.rand(x.shape[0], 1).cuda()
     alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
     encode_mix = alpha * netE(x) + (1 - alpha) * netE(x2)
-    if opt.noise == 'sphere':
+    if opt.embedding == 'sphere':
         normalize(encode_mix)
     x_alpha = netG(encode_mix)
     save_path = '%s/interpolate_samples_epoch_%03d.png' % (opt.save_dir, epoch)
@@ -217,9 +221,9 @@ def save_images(epoch):
 
     save_path = '%s/reconstructions_epoch_%03d.png' % (opt.save_dir, epoch)
     grid = vutils.save_image(t[:64]/2+0.5 , save_path)
-    netG.train()
-    netg.train()
-    netE.train()
+    #netG.train()
+    #netg.train()
+    #netE.train()
 def adjust_lr(epoch):
     if epoch % opt.drop_lr == (opt.drop_lr - 1):
         opt.lr /= 2
@@ -234,59 +238,16 @@ def adjust_lr(epoch):
 
         for param_group in optimizerg.param_groups:
             param_group['lr'] = opt.lr
-def plot_embedding(Ex,eEx,z,gz,dir):
-    Ex=Ex.cpu().detach().numpy()
-    eEx=eEx.cpu().detach().numpy()
-    z=z.cpu().detach().numpy()
-    gz=gz.cpu().detach().numpy()
-    fig = plt.figure()
-    ax1 = plt.subplot(221)
-    sc1 = ax1.scatter(Ex[:, 0], Ex[:, 1], s=10)
-    ax1.set_title('Ex')
-    ax2 = plt.subplot(222)
-    sc2 = ax2.scatter(eEx[:, 0], eEx[:, 1], s=10)
-    ax2.set_title('eEx')
-    ax3 = plt.subplot(223)
-    sc3 = ax3.scatter(z[:, 0], z[:, 1], s=10)
-    ax3.set_title('z')
-    ax4 = plt.subplot(224)
-    sc4 = ax4.scatter(gz[:, 0], gz[:, 1], s=10)
-    ax4.set_title('gz')
-    #c1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    plt.xticks([])
-    plt.yticks([])
-    #handles = [plt.plot([], color=sc.get_cmap()(sc.norm(c)), ls="", marker="o")[0] for c in c1]
-    # c=[c for c in label]
-    #plt.legend(handles, c1)
-    # fig.show()
 
-    fig.savefig("%s/latent" % (dir))
-    return fig
-def test_embedding(netE,netG):
-    netE.eval()
-    netG.eval()
-    netg.eval()
-    nete.eval()
-    #populate_x(x, dataloader['train'])
-    idx = torch.randperm(dataloader['train'].__len__())
-    x,_=dataloader['val'].next()
-    #x = x.permute(0, 3, 1, 2)
-    for i in range(len(dataloader['val'])-1):
-        real_cpu,_ = dataloader['val'].next()
-        #real_cpu=real_cpu.permute(0,3,1,2)
-        x=torch.cat((x,real_cpu),0)
-    z=torch.randn(50000, opt.nz).to('cuda')
-    normalize_(z)
-    Ex = netE(x.cuda())
-    eEx= nete(Ex)
-    gz=netg(z)
-    #Ggz=netG(netg(z))
-    #os.mkdir('./results_loage/embedding',exist_ok=True)
-    plot_embedding(Ex,eEx,z,gz, dir='./results_loage/embedding')
-    exit(0)
-#test_embedding(netE,netG)
+        for param_group in optimizerd.param_groups:
+            param_group['lr'] = opt.lr
+
+        for param_group in optimizerE.param_groups:
+            param_group['lr'] = opt.lr
+
 stats = {}
 batches_done=0
+#populate_x(x, dataloader['train'])
 for epoch in range(opt.start_epoch, opt.nepoch):
 
     # Adjust learning rate
@@ -306,12 +267,14 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             alpha=torch.rand(x.shape[0],1).cuda()
             alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
             encode_mix = alpha * encode1 + (1 - alpha) * encode2
-            if opt.noise == 'sphere':
+            if opt.embedding == 'sphere':
                 encode_mix=normalize(encode_mix)
             x_alpha = netG(encode_mix)
             AE = netG(encode1)
-            loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()).pow(2))
-            loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))).pow(2))
+            populate_z(z, opt)
+            xz = netd(netG(netg(z.squeeze())).detach())
+            loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()-opt.reg).pow(2))+torch.mean((xz - 0.7).pow(2))
+            loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))-opt.reg).pow(2))+torch.mean(netd(x).pow(2))
             #loss_ae_disc = torch.mean(torch.square(netd(x_alpha)))
             d_loss=loss_disc+loss_disc_real
             stats['d_loss'] = d_loss
@@ -328,12 +291,14 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             #populate_x(x, dataloader['train'])
             # E(X)
             #Ex = netE(x)
-            #GEx = netG(Ex)
+            #AE = netG(Ex)
             loss_ae_disc = torch.mean((netd(x_alpha)).pow(2))
+            loss_ae_real = torch.mean(netd(AE).pow(2))
             err = match(AE, x, opt.match_x)
-            AE_loss=err+0.5*loss_ae_disc
+            AE_loss=err+loss_ae_disc+loss_ae_real
             stats['AE_loss'] = AE_loss
-            AE_loss.backward()
+            stats['err'] = err
+            err.backward()
             optimizerE.step()
             optimizerG.step()
 
@@ -347,20 +312,20 @@ for epoch in range(opt.start_epoch, opt.nepoch):
 
             # X
             populate_x(x, dataloader['train'])
-            populate_x(x2, dataloader['train'])
+            #populate_x(x2, dataloader['train'])
             #E(x1),E(x2)
             encode1 = netE(x)
             D_real = netD(encode1)
-            encode2 = netE(x2)
-            alpha = torch.rand(x.shape[0], 3,1).cuda()
-            alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
-            encode_mix = alpha * encode1.unsqueeze(1) + (1 - alpha) * encode2.unsqueeze(1)
-            encode_mix=encode_mix.view(-1,opt.nz)
-            if opt.noise == 'sphere':
-                encode_mix = normalize(encode_mix)
+            #encode2 = netE(x2)
+            #alpha = torch.rand(x.shape[0], 5,1).cuda()
+            #alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
+            #encode_mix = alpha * encode1.unsqueeze(1) + (1 - alpha) * encode2.unsqueeze(1)
+            #encode_mix=encode_mix.view(-1,opt.nemb)
+            #if opt.embedding == 'sphere':
+               # encode_mix = normalize(encode_mix)
             # Z
-            D_mix=netD(encode_mix)
-            D_real_all = torch.cat([D_real,D_mix],0)
+            #D_mix=netD(encode_mix)
+            #D_real_all = torch.cat([D_real,D_mix],0)
             populate_z(z, opt)
             D_fake = netD(netg(z.squeeze()).detach())
             r_logit_mean, f_logit_mean, D_loss = hinge_loss_discriminator(r_logit=D_real, f_logit=D_fake)
@@ -374,7 +339,7 @@ for epoch in range(opt.start_epoch, opt.nepoch):
         #        Minimize over  g e
         # ---------------------------
 
-        for g_iter in range(updates['G']['num_updates']):
+        for g_iter in range(updates['e']['num_updates']):
             #netE.zero_grad()
             netg.zero_grad()
             nete.zero_grad()
@@ -382,16 +347,19 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             # Z
             populate_z(z, opt)
             # Gg(Z)
-            g_fake = netD(netg((z.squeeze())))
+            g=netg(z.squeeze())
+            g_fake = netD(g)
+            gx_fake=netd(netG(g))
             # X
             #populate_x(x, dataloader['train'])
             # E(X)
             #Ex = netE(x)
             #g_real = netD(Ex)
             G_f_logit_mean, g_loss = hinge_loss_generator2(f_logit=g_fake)
+            loss_recon = torch.mean(gx_fake.pow(2))
             egz=nete(netg(z.squeeze()))
             err = match(egz, z, opt.match_z)
-            g_loss=g_loss+err*10
+            g_loss=g_loss+err*2+loss_recon
             stats['g_loss'] = g_loss
             stats['err'] = err
             # Step g
@@ -404,7 +372,7 @@ for epoch in range(opt.start_epoch, opt.nepoch):
 
         print('[{epoch}/{nepoch}][{iter}/{niter}] '
               'D_loss/g_loss: {D_loss:.3f}/{g_loss:.3f} '
-              'AE_loss: {AE_loss:.3f}'
+              'AE_loss/err: {AE_loss:.3f}/{err:.3f}'
               'd_loss: {d_loss:.3f}'
               ''.format(epoch=epoch,
                         nepoch=opt.nepoch,
@@ -413,28 +381,29 @@ for epoch in range(opt.start_epoch, opt.nepoch):
                         **stats))
 
         if i % opt.save_every == 0:
-            print(batches_done)
             writer.add_scalar('d_loss', stats['d_loss'], batches_done)
             writer.add_scalar('AE_loss', stats['AE_loss'], batches_done)
+            writer.add_scalar('err', stats['err'], batches_done)
             writer.add_scalar('D_loss',stats['D_loss'],batches_done)
             writer.add_scalar('g_loss', stats['g_loss'], batches_done)
 
-        if i % opt.save_every == 0:
+        if i % opt.save_every == 0 and epoch % 10 ==9:
             save_images(epoch)
 
         # If an epoch takes long time, dump intermediate
-        if opt.dataset in ['lsun', 'imagenet'] and (i % 5000 == 0):
-            torch.save(netG, '%s/netG_epoch_%d_it_%d.pth' %
-                       (opt.save_dir, epoch, i))
-            torch.save(netE, '%s/netE_epoch_%d_it_%d.pth' %
-                       (opt.save_dir, epoch, i))
+        # if opt.dataset in ['lsun', 'imagenet'] and (i % 5000 == 0):
+        #     torch.save(netG, '%s/netG_epoch_%d_it_%d.pth' %
+        #                (opt.save_dir, epoch, i))
+        #     torch.save(netE, '%s/netE_epoch_%d_it_%d.pth' %
+        #                (opt.save_dir, epoch, i))
 
 
     # do checkpointing
-    torch.save(netG, '%s/netG_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netE, '%s/netE_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(nete, '%s/nete_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netg, '%s/netg_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netD, '%s/netD_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netd, '%s/netd_epoch_%d.pth' % (opt.save_dir, epoch))
+    if epoch % 10 ==9:
+        torch.save(netG, '%s/netG_epoch_%d.pth' % (opt.save_dir, epoch))
+        torch.save(netE, '%s/netE_epoch_%d.pth' % (opt.save_dir, epoch))
+        torch.save(nete, '%s/nete_epoch_%d.pth' % (opt.save_dir, epoch))
+        torch.save(netg, '%s/netg_epoch_%d.pth' % (opt.save_dir, epoch))
+        torch.save(netD, '%s/netD_epoch_%d.pth' % (opt.save_dir, epoch))
+        torch.save(netd, '%s/netd_epoch_%d.pth' % (opt.save_dir, epoch))
 

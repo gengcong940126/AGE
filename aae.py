@@ -24,6 +24,8 @@ parser.add_argument('--image_size', type=int, default=64,
                     help='the resolution of the input image to network')
 parser.add_argument('--nz', type=int, default=128,
                     help='size of the latent z vector')
+parser.add_argument('--nemb', type=int, default=128,
+                    help='size of the latent embedding')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nc', type=int,default=3)
@@ -65,7 +67,7 @@ parser.add_argument('--nete_chp', default='',
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_AEGAN_sphere_32',
+parser.add_argument('--save_dir', default='./results_celeba/aae_128',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -87,7 +89,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--G_updates', default="3;KL_fake:1,match_z:10,match_x:0",
+    '--G_updates', default="1;KL_fake:1,match_z:10,match_x:0",
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
@@ -104,9 +106,9 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 opt = parser.parse_args()
-os.makedirs('./results_AEGAN_sphere_32',exist_ok=True)
-os.makedirs('./results_AEGAN_sphere_32/tb',exist_ok=True)
-writer=SummaryWriter(log_dir='./results_AEGAN_sphere_32/tb')
+os.makedirs('./results_celeba/aae_128',exist_ok=True)
+os.makedirs('./results_celeba/aae_128/tb',exist_ok=True)
+writer=SummaryWriter(log_dir='./results_celeba/aae_128/tb')
 if 'PORT' not in os.environ:
     os.environ['PORT'] = '6012'
 if 'CUDA_VISIBLE_DEVICES' not in os.environ:
@@ -124,9 +126,6 @@ netG = load_G(opt)
 
 # Load encoder
 netE = load_E(opt)
-
-# Load generator_latent
-netg = load_g(opt).to('cuda')
 
 
 netD = load_D(opt).to('cuda')
@@ -157,10 +156,7 @@ fixed_z = Variable(fixed_z)
 # Setup optimizers
 optimizerE = optim.Adam(netE.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizerg = optim.Adam(netg.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizere = optim.Adam(nete.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizerd = optim.Adam(netd.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
 
 real_cpu = torch.FloatTensor()
@@ -175,9 +171,8 @@ def save_images(epoch):
     vutils.save_image(real_cpu[:64]/2+0.5 , save_path)
 
     netG.eval()
-    netg.eval()
     populate_z(z, opt)
-    fake = netG(netg(z.squeeze()))
+    fake = netG(z.squeeze())
 
     # Fake samples
     save_path = '%s/fake_samples_epoch_%03d.png' % (opt.save_dir, epoch)
@@ -207,7 +202,6 @@ def save_images(epoch):
     save_path = '%s/reconstructions_epoch_%03d.png' % (opt.save_dir, epoch)
     grid = vutils.save_image(t[:64]/2+0.5 , save_path)
     netG.train()
-    netg.train()
     netE.train()
 def adjust_lr(epoch):
     if epoch % opt.drop_lr == (opt.drop_lr - 1):
@@ -217,63 +211,9 @@ def adjust_lr(epoch):
 
         for param_group in optimizerG.param_groups:
             param_group['lr'] = opt.lr
-
-        for param_group in optimizere.param_groups:
+        for param_group in optimizerE.param_groups:
             param_group['lr'] = opt.lr
 
-        for param_group in optimizerg.param_groups:
-            param_group['lr'] = opt.lr
-def plot_embedding(Ex,eEx,z,gz,dir):
-    Ex=Ex.cpu().detach().numpy()
-    eEx=eEx.cpu().detach().numpy()
-    z=z.cpu().detach().numpy()
-    gz=gz.cpu().detach().numpy()
-    fig = plt.figure()
-    ax1 = plt.subplot(221)
-    sc1 = ax1.scatter(Ex[:, 0], Ex[:, 1], s=10)
-    ax1.set_title('Ex')
-    ax2 = plt.subplot(222)
-    sc2 = ax2.scatter(eEx[:, 0], eEx[:, 1], s=10)
-    ax2.set_title('eEx')
-    ax3 = plt.subplot(223)
-    sc3 = ax3.scatter(z[:, 0], z[:, 1], s=10)
-    ax3.set_title('z')
-    ax4 = plt.subplot(224)
-    sc4 = ax4.scatter(gz[:, 0], gz[:, 1], s=10)
-    ax4.set_title('gz')
-    #c1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    plt.xticks([])
-    plt.yticks([])
-    #handles = [plt.plot([], color=sc.get_cmap()(sc.norm(c)), ls="", marker="o")[0] for c in c1]
-    # c=[c for c in label]
-    #plt.legend(handles, c1)
-    # fig.show()
-
-    fig.savefig("%s/latent" % (dir))
-    return fig
-def test_embedding(netE,netG):
-    netE.eval()
-    netG.eval()
-    netg.eval()
-    nete.eval()
-    #populate_x(x, dataloader['train'])
-    idx = torch.randperm(dataloader['train'].__len__())
-    x,_=dataloader['val'].next()
-    #x = x.permute(0, 3, 1, 2)
-    for i in range(len(dataloader['val'])-1):
-        real_cpu,_ = dataloader['val'].next()
-        #real_cpu=real_cpu.permute(0,3,1,2)
-        x=torch.cat((x,real_cpu),0)
-    z=torch.randn(50000, opt.nz).to('cuda')
-    normalize_(z)
-    Ex = netE(x.cuda())
-    eEx= nete(Ex)
-    gz=netg(z)
-    #Ggz=netG(netg(z))
-    #os.mkdir('./results_loage/embedding',exist_ok=True)
-    plot_embedding(Ex,eEx,z,gz, dir='./results_loage/embedding')
-    exit(0)
-#test_embedding(netE,netG)
 stats = {}
 batches_done=0
 for epoch in range(opt.start_epoch, opt.nepoch):
@@ -313,22 +253,10 @@ for epoch in range(opt.start_epoch, opt.nepoch):
 
             # X
             populate_x(x, dataloader['train'])
-            populate_x(x2, dataloader['train'])
-            # E(x1),E(x2)
-            encode1 = netE(x)
-            D_real = netD(encode1)
-            encode2 = netE(x2)
-            alpha = torch.rand(x.shape[0], 5, 1).cuda()
-            alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
-            encode_mix = alpha * encode1.unsqueeze(1) + (1 - alpha) * encode2.unsqueeze(1)
-            encode_mix = encode_mix.view(-1, opt.nz)
-            if opt.embedding == 'sphere':
-                encode_mix = normalize(encode_mix)
-            # Z
-            D_mix = netD(encode_mix)
-            D_real_all = torch.cat([D_real, D_mix], 0)
+            Ex = netE(x)
             populate_z(z, opt)
-            D_fake = netD(netg(z.squeeze()).detach())
+            D_real=netD(z.squeeze())
+            D_fake=netD(Ex.detach())
             r_logit_mean, f_logit_mean, D_loss = hinge_loss_discriminator(r_logit=D_real, f_logit=D_fake)
             # Save some stats
             stats['D_loss'] = D_loss
@@ -342,29 +270,20 @@ for epoch in range(opt.start_epoch, opt.nepoch):
 
         for g_iter in range(updates['G']['num_updates']):
             #netE.zero_grad()
-            netg.zero_grad()
-            nete.zero_grad()
+            netE.zero_grad()
 
-            # Z
-            populate_z(z, opt)
-            # Gg(Z)
-            g_fake = netD(netg((z.squeeze())))
+            E_fake = netD(Ex)
             # X
             #populate_x(x, dataloader['train'])
             # E(X)
             #Ex = netE(x)
             #g_real = netD(Ex)
-            G_f_logit_mean, g_loss = hinge_loss_generator2(f_logit=g_fake)
-            egz=nete(netg(z.squeeze()))
-            err = match(egz, z, opt.match_z)
-            g_loss=g_loss+err*10
+            G_f_logit_mean, g_loss = hinge_loss_generator2(f_logit=E_fake)
             stats['g_loss'] = g_loss
-            stats['err'] = err
             # Step g
             g_loss.backward()
             #optimizerE.step()
-            optimizerg.step()
-            optimizere.step()
+            optimizerE.step()
 
 
 
@@ -378,7 +297,6 @@ for epoch in range(opt.start_epoch, opt.nepoch):
                         **stats))
 
         if i % opt.save_every == 0:
-            print(batches_done)
             writer.add_scalar('AE_loss', stats['AE_loss'], batches_done)
             writer.add_scalar('D_loss',stats['D_loss'],batches_done)
             writer.add_scalar('g_loss', stats['g_loss'], batches_done)
@@ -397,7 +315,5 @@ for epoch in range(opt.start_epoch, opt.nepoch):
     # do checkpointing
     torch.save(netG, '%s/netG_epoch_%d.pth' % (opt.save_dir, epoch))
     torch.save(netE, '%s/netE_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(nete, '%s/nete_epoch_%d.pth' % (opt.save_dir, epoch))
-    torch.save(netg, '%s/netg_epoch_%d.pth' % (opt.save_dir, epoch))
     torch.save(netD, '%s/netD_epoch_%d.pth' % (opt.save_dir, epoch))
 
