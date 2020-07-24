@@ -4,7 +4,7 @@ from .base import _netE_Base, _netG_Base, _netg_Base, _nete_Base,_netD_Base, _ne
 def _netd(opt):
     ndf = opt.ndf
     nc = opt.nc
-    nz = opt.nz
+
 
 
     main = nn.Sequential(

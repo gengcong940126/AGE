@@ -207,5 +207,3 @@ def run(argv_str=None):
 
 if __name__ == "__main__":
   run()
-  from template_lib.examples import test_bash
-  test_bash.TestingUnit().test_resnet(gpu=os.environ['CUDA_VISIBLE_DEVICES'])
