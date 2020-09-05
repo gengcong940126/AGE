@@ -11,11 +11,12 @@ import torchvision.utils as vutils
 from torch.autograd import Variable
 from src.utils import *
 import src.losses as losses
-
+#source activate py36
+#export CUDA_VISIBLE_DEVICES=1
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=False, default='celeba',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default=os.path.expanduser('~/data/celebA/img_align_celeba'))
+parser.add_argument('--dataroot', type=str, help='path to dataset',default='./datasets/celeba_all/img_align_celeba')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
@@ -52,7 +53,7 @@ parser.add_argument('--nete', default='dcgan32px',
                     help="path to nete config")
 parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
-parser.add_argument('--netd', default='dcgan32px',
+parser.add_argument('--netd', default='dcgan64px',
                     help="path to netd config")
 parser.add_argument('--netG_chp', default='',
                     help="path to netG (to continue training)")
@@ -67,7 +68,7 @@ parser.add_argument('--nete_chp', default='',
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_celeba/aae_128',
+parser.add_argument('--save_dir', default='./results_celeba/aae2_128',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -106,9 +107,9 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 opt = parser.parse_args()
-os.makedirs('./results_celeba/aae_128',exist_ok=True)
-os.makedirs('./results_celeba/aae_128/tb',exist_ok=True)
-writer=SummaryWriter(log_dir='./results_celeba/aae_128/tb')
+os.makedirs('./results_celeba/aae2_128',exist_ok=True)
+os.makedirs('./results_celeba/aae2_128/tb',exist_ok=True)
+writer=SummaryWriter(log_dir='./results_celeba/aae2_128/tb')
 if 'PORT' not in os.environ:
     os.environ['PORT'] = '6012'
 if 'CUDA_VISIBLE_DEVICES' not in os.environ:
@@ -279,6 +280,7 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             #Ex = netE(x)
             #g_real = netD(Ex)
             G_f_logit_mean, g_loss = hinge_loss_generator2(f_logit=E_fake)
+            g_loss=g_loss*0.1
             stats['g_loss'] = g_loss
             # Step g
             g_loss.backward()

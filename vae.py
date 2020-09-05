@@ -15,7 +15,7 @@ import src.losses as losses
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=False, default='celeba',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default=os.path.expanduser('~/data/celebA/img_align_celeba'))
+parser.add_argument('--dataroot', type=str, help='path to dataset',default='./datasets/celeba_all/img_align_celeba')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
@@ -33,7 +33,7 @@ parser.add_argument('--reg', type=int,default=0.2)
 
 parser.add_argument('--nepoch', type=int, default=25,
                     help='number of epochs to train for')
-parser.add_argument('--lr', type=float, default=0.0002,
+parser.add_argument('--lr', type=float, default=0.0005,
                     help='learning rate, default=0.0002')
 parser.add_argument('--beta1', type=float, default=0.5,
                     help='beta1 for adam. default=0.5')
@@ -52,7 +52,7 @@ parser.add_argument('--nete', default='dcgan32px',
                     help="path to nete config")
 parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
-parser.add_argument('--netd', default='dcgan32px',
+parser.add_argument('--netd', default='dcgan64px',
                     help="path to netd config")
 parser.add_argument('--netG_chp', default='',
                     help="path to netG (to continue training)")
@@ -233,7 +233,7 @@ for epoch in range(opt.start_epoch, opt.nepoch):
         err=match(AE, x, opt.match_x)
         kl_loss = -0.5 * torch.sum(1 + logsigma - mu.pow(2) - logsigma.exp())
         AE_loss=err
-        loss = kl_loss*0.0001+ err
+        loss = kl_loss*0.000032+ err
         stats['AE_loss'] = AE_loss
         stats['KL_loss'] = kl_loss
         loss.backward()

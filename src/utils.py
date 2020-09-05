@@ -272,7 +272,7 @@ def load_vae_E(opt):
     netE.apply(weights_init)
     netE.train()
     if opt.vae_netE_chp != '':
-        netE.load_state_dict(torch.load(opt.netE_chp).state_dict())
+        netE.load_state_dict(torch.load(opt.vae_netE_chp).state_dict())
 
     print('Encoder\n', netE)
 
@@ -282,7 +282,7 @@ def load_g(opt):
     Loads generator model.
     '''
     m = importlib.import_module('models.' + opt.netg)
-    netg = m._netg(opt)
+    netg = m._netg2(opt)
     netg.apply(weights_init)
     netg.train()
     if opt.netg_chp != '':
