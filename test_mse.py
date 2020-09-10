@@ -1,7 +1,7 @@
 from __future__ import print_function
 import argparse
 import torch
-
+import scipy.io as scio
 import torch.nn.parallel
 from easydict import EasyDict
 import yaml
@@ -23,7 +23,7 @@ parser.add_argument('--dataroot', type=str, help='path to dataset',default='./da
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
-                    default=100, help='batch size')
+                    default=64, help='batch size')
 parser.add_argument('--image_size', type=int, default=64,
                     help='the resolution of the input image to network')
 parser.add_argument('--nz', type=int, default=128,
@@ -58,11 +58,11 @@ parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
 parser.add_argument('--netd', default='dcgan64px',
                     help="path to netd config")
-parser.add_argument('--netG_chp', default='./results/age_offi/netG_epoch_24.pth',
+parser.add_argument('--netG_chp', default='./results_celeba/introvae_128/netG_epoch_24.pth',
                     help="path to netG (to continue training)")
 parser.add_argument('--netD_chp', default='./results_celeba/vae_128/netD_epoch_24.pth',
                     help="path to netD (to continue training)")
-parser.add_argument('--netE_chp', default='./results/age_offi/netE_epoch_24.pth',
+parser.add_argument('--vae_netE_chp', default='./results_celeba/introvae_128/netE_epoch_24.pth',
                     help="path to netE (to continue training)")
 #./results_loage/netg_epoch_35.pth
 parser.add_argument('--netg_chp', default='./results_celeba/vae_128/netg_epoch_24.pth',
@@ -71,7 +71,7 @@ parser.add_argument('--nete_chp', default='./results_celeba/vae_128/nete_epoch_2
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='./results_celeba/vae_128/netd_epoch_24.pth',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_celeba/',
+parser.add_argument('--save_dir', default='./results_celeba/recon',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -122,8 +122,8 @@ dataloader = dict(train=setup_dataset(opt, train=True,shuffle=False),
 netG = load_G(opt).to('cuda')
 
 # Load encoder
-#netE = load_vae_E(opt).to('cuda')
-netE = load_E(opt).to('cuda')
+netE = load_vae_E(opt).to('cuda')
+#netE = load_E(opt).to('cuda')
 
 # Load generator_latent
 #netg = load_g(opt).to('cuda')
@@ -176,9 +176,18 @@ x = torch.FloatTensor(opt.batch_size, opt.nc,
 populate_x(x, dataloader['val'])
             # z = self.z2
 with torch.no_grad():
-    z=netE(x)
+    z,_,_=netE(x)
     AE=netG(z)
 criterion=torch.nn.MSELoss()
 mse=criterion(AE,x)
 print(mse)
+t = torch.FloatTensor(x.size(0)* 2, x.size(1),
+                          x.size(2), x.size(3))
 
+t[0::2] = x.data[:]
+t[1::2] = AE.data[:]
+
+save_path = '%s/reconstructions_introvae.png' % (opt.save_dir)
+grid = vutils.save_image(t[:12]/2+0.5 , save_path,nrow=2)
+file = './index.mat'
+scio.savemat(file, {'data': x.detach().cpu().numpy()})

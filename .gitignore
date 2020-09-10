@@ -21,3 +21,6 @@ _cache_homemachlearnkeraslsunbedroombedroomvallmdb
 latent_3d_points/external/structural_losses/tf_approxmatch_g.cu.o
 latent_3d_points/external/structural_losses/tf_nndistance_g.cu.o
 datasets/imagenet
+datasets/tf_inception_model/inception-2015-12-05.tgz
+datasets/tf_inception_model/imagenet_2012_challenge_label_map_proto.pbtxt
+datasets/tf_inception_model/imagenet_synset_to_human_label_map.txt
