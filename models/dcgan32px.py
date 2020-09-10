@@ -45,10 +45,10 @@ def _netD(opt):
         nn.utils.spectral_norm(nn.Linear(nemb, 400)),
         #nn.BatchNorm1d(400),
         nn.ReLU(),
-        nn.utils.spectral_norm(nn.Linear(400, 800)),
+        nn.utils.spectral_norm(nn.Linear(400, 400)),
         # nn.BatchNorm1d(400),
         nn.ReLU(),
-        nn.utils.spectral_norm(nn.Linear(800, 400)),
+        nn.utils.spectral_norm(nn.Linear(400, 400)),
         # nn.BatchNorm1d(400),
         nn.ReLU(),
         nn.utils.spectral_norm(nn.Linear(400, 64)),
@@ -150,6 +150,31 @@ def _netg(opt):
     )
     return _netg_Base(opt, main)
 
+
+def _netg2(opt):
+    ngf = opt.ngf
+    nc = opt.nc
+    nz = opt.nz
+    nemb=opt.nemb
+    main = nn.Sequential(
+        # input is Z, going into a convolution
+        nn.Linear(nz, 400),
+        nn.BatchNorm1d(400),
+        # nn.ReLU(),
+        # nn.Linear(400, 400),
+        # nn.BatchNorm1d(400),
+        # nn.ReLU(),
+        # nn.Linear(400, 400),
+        # nn.BatchNorm1d(400),
+        # nn.ReLU(),
+        # nn.Linear(400, 400),
+        # nn.BatchNorm1d(400),
+        nn.ReLU(),
+        nn.Linear(400, nemb),
+        #nn.Sigmoid()
+    #nn.Sigmoid()
+    )
+    return _netg_Base(opt, main)
 # ------------------------
 #         e
 # ------------------------
@@ -161,10 +186,10 @@ def _nete(opt):
     nemb=opt.nemb
     main = nn.Sequential(
         # input is (nc) x 32 x 32
-        nn.Sequential(nn.Linear(nemb, 800),
-                      nn.BatchNorm1d(800),
+        nn.Sequential(nn.Linear(nemb, 400),
+                      nn.BatchNorm1d(400),
                       nn.ReLU(),
-                      nn.Linear(800, nz)
+                      nn.Linear(400, nz)
                       )
 
     )

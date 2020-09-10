@@ -11,24 +11,24 @@ from src.utils import *
 import src.losses as losses
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='cifar10',
+parser.add_argument('--dataset', required=False, default='celeba',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default='./data')
+parser.add_argument('--dataroot', type=str, help='path to dataset',default='./datasets/celeba_all/img_align_celeba')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
                     default=64, help='batch size')
-parser.add_argument('--image_size', type=int, default=32,
+parser.add_argument('--image_size', type=int, default=64,
                     help='the resolution of the input image to network')
-parser.add_argument('--nz', type=int, default=100,
+parser.add_argument('--nz', type=int, default=128,
                     help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nc', type=int,default=3)
-parser.add_argument('--nemb', type=int, default=100,
+parser.add_argument('--nemb', type=int, default=128,
                     help='size of the latent embedding')
 parser.add_argument('--embedding', default='sphere', help='normal|sphere')
-parser.add_argument('--nepoch', type=int, default=50,
+parser.add_argument('--nepoch', type=int, default=25,
                     help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002,
                     help='learning rate, default=0.0002')
@@ -39,9 +39,9 @@ parser.add_argument('--cpu', action='store_true',
 parser.add_argument('--ngpu', type=int, default=1,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='dcgan32px',
+parser.add_argument('--netG', default='dcgan64px',
                     help="path to netG config")
-parser.add_argument('--netE', default='dcgan32px',
+parser.add_argument('--netE', default='dcgan64px',
                     help="path to netE config")
 #./results/netG_epoch_499.pth
 parser.add_argument('--netG_chp', default='',
@@ -73,7 +73,7 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
-    '--e_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:0",
+    '--e_updates', default="1;KL_fake:1,KL_real:1,match_z:0,match_x:10",
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
@@ -81,7 +81,7 @@ parser.add_argument(
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
-    '--g_updates', default="2;KL_fake:1,match_z:1000,match_x:0",
+    '--g_updates', default="3;KL_fake:1,match_z:1000,match_x:0",
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 
