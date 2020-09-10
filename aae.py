@@ -14,7 +14,7 @@ import src.losses as losses
 #source activate py36
 #export CUDA_VISIBLE_DEVICES=1
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='celeba',
+parser.add_argument('--dataset', required=False, default='celeba_all',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
 parser.add_argument('--dataroot', type=str, help='path to dataset',default='./datasets/celeba_all/img_align_celeba')
 parser.add_argument('--workers', type=int,
