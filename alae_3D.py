@@ -14,7 +14,7 @@ from src.utils import *
 import src.losses as losses
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='celeba',
+parser.add_argument('--dataset', required=False, default='celeba_all',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
 parser.add_argument('--data_type', required=False, default='swiss_roll',
                     help='ball| swiss_roll ')

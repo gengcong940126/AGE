@@ -117,7 +117,7 @@ def setup_dataset(opt, train=True, shuffle=True, drop_last=True):
                             download=True,
                             train=train,
                             transform=t)
-    elif opt.dataset == 'celeba':
+    elif opt.dataset == 'celeba_all':
         #imdir = 'train' if train else 'val'
         #dataroot = os.path.join(opt.dataroot, imdir)
         dataroot=opt.dataroot
