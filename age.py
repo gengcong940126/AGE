@@ -11,14 +11,14 @@ from src.utils import *
 import src.losses as losses
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='celeba',
+parser.add_argument('--dataset', required=False, default='cifar10',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default='./datasets/celeba_all/img_align_celeba')
+parser.add_argument('--dataroot', type=str, help='path to dataset',default='./data/raw/cifar10')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
                     default=64, help='batch size')
-parser.add_argument('--image_size', type=int, default=64,
+parser.add_argument('--image_size', type=int, default=32,
                     help='the resolution of the input image to network')
 parser.add_argument('--nz', type=int, default=128,
                     help='size of the latent z vector')
@@ -28,7 +28,7 @@ parser.add_argument('--nc', type=int,default=3)
 parser.add_argument('--nemb', type=int, default=128,
                     help='size of the latent embedding')
 parser.add_argument('--embedding', default='sphere', help='normal|sphere')
-parser.add_argument('--nepoch', type=int, default=25,
+parser.add_argument('--nepoch', type=int, default=100,
                     help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0002,
                     help='learning rate, default=0.0002')
@@ -39,9 +39,9 @@ parser.add_argument('--cpu', action='store_true',
 parser.add_argument('--ngpu', type=int, default=1,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='dcgan64px',
+parser.add_argument('--netG', default='dcgan32px',
                     help="path to netG config")
-parser.add_argument('--netE', default='dcgan64px',
+parser.add_argument('--netE', default='dcgan32px',
                     help="path to netE config")
 #./results/netG_epoch_499.pth
 parser.add_argument('--netG_chp', default='',
@@ -49,7 +49,7 @@ parser.add_argument('--netG_chp', default='',
 parser.add_argument('--netE_chp', default='',
                     help="path to netE (to continue training)")
 
-parser.add_argument('--save_dir', default='./results/age_offi',
+parser.add_argument('--save_dir', default='./results/age_cifar10',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -58,7 +58,7 @@ parser.add_argument('--noise', default='sphere', help='normal|sphere')
 parser.add_argument('--match_z', default='cos', help='none|L1|L2|cos')
 parser.add_argument('--match_x', default='L1', help='none|L1|L2|cos')
 
-parser.add_argument('--drop_lr', default=5, type=int, help='')
+parser.add_argument('--drop_lr', default=40, type=int, help='')
 parser.add_argument('--save_every', default=50, type=int, help='')
 
 parser.add_argument('--manual_seed', type=int, default=123, help='manual seed')
@@ -81,12 +81,12 @@ parser.add_argument(
     help='Update plan for encoder <number of updates>;[<term:weight>]'
 )
 parser.add_argument(
-    '--g_updates', default="3;KL_fake:1,match_z:1000,match_x:0",
+    '--g_updates', default="2;KL_fake:1,match_z:1000,match_x:0",
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 
 opt = parser.parse_args()
-os.makedirs('./results/age_offi',exist_ok=True)
+os.makedirs('./results/age_cifar10',exist_ok=True)
 # Setup cudnn, seed, and parses updates string.
 updates = setup(opt)
 

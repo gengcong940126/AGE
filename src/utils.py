@@ -282,7 +282,7 @@ def load_g(opt):
     Loads generator model.
     '''
     m = importlib.import_module('models.' + opt.netg)
-    netg = m._netg2(opt)
+    netg = m._netg(opt)
     netg.apply(weights_init)
     netg.train()
     if opt.netg_chp != '':

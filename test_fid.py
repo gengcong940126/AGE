@@ -16,14 +16,14 @@ from src.utils import *
 import src.losses as losses
 from evaluation import build_GAN_metric
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='celeba',
+parser.add_argument('--dataset', required=False, default='cifar10',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
 parser.add_argument('--dataroot', type=str, help='path to dataset',default='data/raw/cifar10')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
                     default=64, help='batch size')
-parser.add_argument('--image_size', type=int, default=64,
+parser.add_argument('--image_size', type=int, default=32,
                     help='the resolution of the input image to network')
 parser.add_argument('--nz', type=int, default=128,
                     help='size of the latent z vector')
@@ -45,9 +45,9 @@ parser.add_argument('--cpu', action='store_true',
 parser.add_argument('--ngpu', type=int, default=1,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='dcgan64px',
+parser.add_argument('--netG', default='dcgan32px',
                     help="path to netG config")
-parser.add_argument('--netE', default='dcgan64px',
+parser.add_argument('--netE', default='dcgan32px',
                     help="path to netE config")
 parser.add_argument('--netg', default='dcgan32px',
                     help="path to netg config")
@@ -55,13 +55,13 @@ parser.add_argument('--nete', default='dcgan32px',
                     help="path to nete config")
 parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
-parser.add_argument('--netd', default='dcgan64px',
+parser.add_argument('--netd', default='dcgan32px',
                     help="path to netd config")
-parser.add_argument('--netG_chp', default='./results/age_offi/netG_epoch_24.pth',
+parser.add_argument('--netG_chp', default='./results/age_cifar10/netG_epoch_99.pth',
                     help="path to netG (to continue training)")
-parser.add_argument('--netD_chp', default='./results_celeba/vae_128/netD_epoch_24.pth',
+parser.add_argument('--netD_chp', default='./results_cifar10/aae_128/netG_epoch_99.pth',
                     help="path to netD (to continue training)")
-parser.add_argument('--vae_netE_chp', default='./results_celeba/vae_128/netE_epoch_24.pth',
+parser.add_argument('--netE_chp', default='./results_cifar10/aae_128/netE_epoch_99.pth',
                     help="path to netE (to continue training)")
 #./results_loage/netg_epoch_35.pth
 parser.add_argument('--netg_chp', default='./results_celeba/vae_128/netg_epoch_24.pth',
@@ -70,7 +70,7 @@ parser.add_argument('--nete_chp', default='./results_celeba/vae_128/nete_epoch_2
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='./results_celeba/vae_128/netd_epoch_24.pth',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_celeba/',
+parser.add_argument('--save_dir', default='./results_cifar10/',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -138,7 +138,7 @@ netG = load_G(opt).to('cuda')
 
 #netg.eval()
 netG.eval()
-os.makedirs('./results_celeba/generate_images',exist_ok=True)
+os.makedirs('./results_cifar10/generate_images',exist_ok=True)
 z2= torch.FloatTensor(opt.batch_size, opt.nz, 1, 1).cuda()
 # =================== #
 # Calcualte FID score #
@@ -181,7 +181,7 @@ config = """
                       update_cfg: true
                       GAN_metric:
                         name: "TFFIDISScore"
-                        tf_fid_stat: "data/tf_fid_stats_celeba10000_64.npz"
+                        tf_fid_stat: "data/tf_fid_stats_cifar10_32.npz"
                         tf_inception_model_dir: "datasets/tf_inception_model"
                         num_inception_images: 50000
         """

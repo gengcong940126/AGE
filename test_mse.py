@@ -17,14 +17,14 @@ from src.utils import *
 import src.losses as losses
 from evaluation import build_GAN_metric
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='celeba',
+parser.add_argument('--dataset', required=False, default='cifar10',
                     help='cifar10 | lsun | imagenet | folder | lfw ')
-parser.add_argument('--dataroot', type=str, help='path to dataset',default='./datasets/celeba_all/img_align_celeba')
+parser.add_argument('--dataroot', type=str, help='path to dataset',default='./data/raw/cifar10')
 parser.add_argument('--workers', type=int,
                     help='number of data loading workers', default=0)
 parser.add_argument('--batch_size', type=int,
                     default=64, help='batch size')
-parser.add_argument('--image_size', type=int, default=64,
+parser.add_argument('--image_size', type=int, default=32,
                     help='the resolution of the input image to network')
 parser.add_argument('--nz', type=int, default=128,
                     help='size of the latent z vector')
@@ -46,9 +46,9 @@ parser.add_argument('--cpu', action='store_true',
 parser.add_argument('--ngpu', type=int, default=1,
                     help='number of GPUs to use')
 
-parser.add_argument('--netG', default='dcgan64px',
+parser.add_argument('--netG', default='dcgan32px',
                     help="path to netG config")
-parser.add_argument('--netE', default='dcgan64px',
+parser.add_argument('--netE', default='dcgan32px',
                     help="path to netE config")
 parser.add_argument('--netg', default='dcgan32px',
                     help="path to netg config")
@@ -56,13 +56,13 @@ parser.add_argument('--nete', default='dcgan32px',
                     help="path to nete config")
 parser.add_argument('--netD', default='dcgan32px',
                     help="path to netD config")
-parser.add_argument('--netd', default='dcgan64px',
+parser.add_argument('--netd', default='dcgan32px',
                     help="path to netd config")
-parser.add_argument('--netG_chp', default='./results_celeba/introvae_128/netG_epoch_24.pth',
+parser.add_argument('--netG_chp', default='./results/age_cifar10/netG_epoch_99.pth',
                     help="path to netG (to continue training)")
 parser.add_argument('--netD_chp', default='./results_celeba/vae_128/netD_epoch_24.pth',
                     help="path to netD (to continue training)")
-parser.add_argument('--vae_netE_chp', default='./results_celeba/introvae_128/netE_epoch_24.pth',
+parser.add_argument('--netE_chp', default='./results/age_cifar10/netE_epoch_99.pth',
                     help="path to netE (to continue training)")
 #./results_loage/netg_epoch_35.pth
 parser.add_argument('--netg_chp', default='./results_celeba/vae_128/netg_epoch_24.pth',
@@ -71,7 +71,7 @@ parser.add_argument('--nete_chp', default='./results_celeba/vae_128/nete_epoch_2
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='./results_celeba/vae_128/netd_epoch_24.pth',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_celeba/recon',
+parser.add_argument('--save_dir', default='./results_cifar10/recon',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
@@ -122,8 +122,8 @@ dataloader = dict(train=setup_dataset(opt, train=True,shuffle=False),
 netG = load_G(opt).to('cuda')
 
 # Load encoder
-netE = load_vae_E(opt).to('cuda')
-#netE = load_E(opt).to('cuda')
+#netE = load_vae_E(opt).to('cuda')
+netE = load_E(opt).to('cuda')
 
 # Load generator_latent
 #netg = load_g(opt).to('cuda')
@@ -176,7 +176,8 @@ x = torch.FloatTensor(opt.batch_size, opt.nc,
 populate_x(x, dataloader['val'])
             # z = self.z2
 with torch.no_grad():
-    z,_,_=netE(x)
+    #z,_,_=netE(x)
+    z= netE(x)
     AE=netG(z)
 criterion=torch.nn.MSELoss()
 mse=criterion(AE,x)
@@ -187,7 +188,7 @@ t = torch.FloatTensor(x.size(0)* 2, x.size(1),
 t[0::2] = x.data[:]
 t[1::2] = AE.data[:]
 
-save_path = '%s/reconstructions_introvae.png' % (opt.save_dir)
+save_path = '%s/reconstructions_age.png' % (opt.save_dir)
 grid = vutils.save_image(t[:12]/2+0.5 , save_path,nrow=2)
-file = './index.mat'
-scio.savemat(file, {'data': x.detach().cpu().numpy()})
+#file = './cifar10_index.mat'
+#scio.savemat(file, {'data': x.detach().cpu().numpy()})

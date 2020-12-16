@@ -1,5 +1,5 @@
 import torch.nn as nn
-from .base import _netE_Base, _netG_Base, _netg_Base, _nete_Base,_netD_Base, _netd_Base
+from .base import _netE_Base, _netG_Base, _netg_Base, _nete_Base,_netD_Base, _netd_Base,vae_netE_Base
 # ------------------------
 #         E
 # ------------------------
@@ -26,6 +26,7 @@ def _netE(opt):
         
         nn.Conv2d(ndf * 4, nemb, 4, 2, 1, bias=True),
         nn.AvgPool2d(2),
+        #nn.BatchNorm2d(nemb),
     )
 
     return _netE_Base(opt,main)
@@ -145,6 +146,7 @@ def _netg(opt):
         nn.BatchNorm1d(400),
         nn.ReLU(),
         nn.Linear(400, nemb),
+        #nn.BatchNorm1d(nemb),
         #nn.Sigmoid()
     #nn.Sigmoid()
     )
@@ -195,3 +197,27 @@ def _nete(opt):
     )
 
     return _nete_Base(opt, main)
+
+def vae_netE(opt):
+    ndf = opt.ndf
+    nc = opt.nc
+    nz = opt.nz
+    nemb = opt.nemb
+    main = nn.Sequential(
+        # state size. (ndf) x 32 x 32
+        nn.Conv2d(nc, ndf , 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf ),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*2) x 8 x 8
+        nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 2),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*4) x 4 x 4
+        nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+        nn.BatchNorm2d(ndf * 4),
+        nn.LeakyReLU(0.2, inplace=True),
+        # state size. (ndf*8) x 4 x 4
+        nn.Conv2d(ndf * 4,  400 , 4, 1, 0, bias=True),
+    )
+
+    return vae_netE_Base(opt, main)
