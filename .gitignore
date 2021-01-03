@@ -95,3 +95,4 @@ results_mnist/AEGAN_acai_noBN/tb/events.out.tfevents.1608680990.public
 results_mnist/AEGAN_acai_z/fake_samples_epoch_035.png
 results_mnist/AEGAN_acai_z/interpolate_samples_epoch_035.png
 results_mnist/AEGAN_acai_z/reconstructions_epoch_035.png
+results_mnist/*
