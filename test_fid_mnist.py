@@ -31,7 +31,7 @@ parser.add_argument('--nemb', type=int, default=256,
                     help='size of the latent embedding')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
-parser.add_argument('--nc', type=int,default=1)
+parser.add_argument('--nc', type=int,default=3)
 parser.add_argument('--reg', type=int,default=0.2)
 
 parser.add_argument('--nepoch', type=int, default=25,
@@ -68,22 +68,22 @@ parser.add_argument('--netg_chp', default='./results_mnist/AEGAN_acai/netg_epoch
                     help="path to netG (to continue training)")
 parser.add_argument('--nete_chp', default='./results_mnist/AEGAN_acai/nete_epoch.pth',
                     help="path to netE (to continue training)")
-parser.add_argument('--netd_chp', default='./results_mnist/AEGAN_acai/netd_epoch.pth',
+parser.add_argument('--netd_chp', default='../results_mnist/AEGAN_acai/netd_epoch.pth',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results/results_ablation/acai2',
+parser.add_argument('--save_dir', default='./results_mnist/fid/AEGAN_acai',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
 parser.add_argument('--KL', default='qp', help='pq|qp')
 parser.add_argument('--noise', default='sphere', help='normal|sphere')
-parser.add_argument('--embedding', default='normal', help='normal|sphere')
+parser.add_argument('--embedding', default='sphere', help='normal|sphere')
 parser.add_argument('--match_z', default='L2', help='none|L1|L2|cos')
 parser.add_argument('--match_x', default='L2', help='none|L1|L2|cos')
 
 parser.add_argument('--drop_lr', default=40, type=int, help='')
 parser.add_argument('--save_every', default=50, type=int, help='')
 
-parser.add_argument('--manual_seed', type=int, default=124, help='manual seed')
+parser.add_argument('--manual_seed', type=int, default=123, help='manual seed')
 parser.add_argument('--start_epoch', type=int, default=0, help='epoch number to start with')
 
 parser.add_argument(
@@ -109,99 +109,102 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 opt = parser.parse_args()
-#os.makedirs('./results_celeba/aae2_128',exist_ok=True)
-os.makedirs('./results/results_ablation/acai2/tb',exist_ok=True)
-writer=SummaryWriter(log_dir='./results/results_ablation/acai2/tb')
 
+# FID evaluation.
+FID_EVAL_SIZE = 10000 # Number of samples for evaluation
+FID_SAMPLE_BATCH_SIZE = 1000  # Batch size of generating samples, lower to save GPU memory
+FID_BATCH_SIZE = 200
+OUTPUT_DIM = opt.image_size * opt.image_size
 # Setup cudnn, seed, and parses updates string.
 updates = setup(opt)
 
 # Setup dataset
-dataloader = dict(train=setup_dataset(opt, train=True,shuffle=False),
-                  val=setup_dataset(opt, train=False,shuffle=False))
+# dataloader = dict(train=setup_dataset(opt, train=True),
+#                   val=setup_dataset(opt, train=False))
 
 # Load generator
-netG = load_G(opt)
+netG = load_G(opt).to('cuda')
 
 # Load encoder
-netE = load_E(opt)
+#netE = load_vae_E(opt).to('cuda')
 
-netg = load_g(opt).to('cuda')
+# Load generator_latent
+#netg = load_g(opt).to('cuda')
+
+# Load encoder_latent
+#nete = load_e(opt).to('cuda')
+
 #netD = load_D(opt).to('cuda')
 
+#netg.eval()
+netG.eval()
+#os.makedirs('./results_cifar10/generate_images',exist_ok=True)
+z2= torch.FloatTensor(opt.batch_size, opt.nz, 1, 1).cuda()
+# =================== #
+# Calcualte FID score #
+# =================== #
+# STAT_FILE = "data/fid_stats_celeba.npz"
+# x = torch.FloatTensor(opt.batch_size, opt.nc,
+#                       opt.image_size, opt.image_size).cuda()
 
-x = torch.FloatTensor(opt.batch_size, opt.nc,
-                      opt.image_size, opt.image_size)
-x2 = torch.FloatTensor(opt.batch_size, opt.nc,
-                      opt.image_size, opt.image_size)
-z = torch.FloatTensor(opt.batch_size, opt.nz, 1, 1)
-fixed_z = torch.FloatTensor(opt.batch_size, opt.nz, 1, 1).normal_(0, 1)
+# f = np.load(STAT_FILE)
+# mu_real, sigma_real = f['mu'][:], f['sigma'][:]
+# f.close()
 
-if opt.noise == 'sphere':
-    normalize_(fixed_z)
+# for j in range(FID_EVAL_SIZE // FID_SAMPLE_BATCH_SIZE):
+#     z2= torch.FloatTensor(FID_SAMPLE_BATCH_SIZE, opt.nz, 1, 1).normal_(0, 1).cuda()
+#     if opt.noise == 'sphere':
+#         normalize_(z2)
+#     fake = netG(z2.squeeze())
+#     #fake = netG(netg(z2.squeeze()))
+#     for i in range(fake.shape[0]):
+#         save_path = '%s/generate_images/images_%d.png' % (opt.save_dir,i+j*FID_SAMPLE_BATCH_SIZE)
+#         vutils.save_image(fake[i] / 2 + 0.5, save_path)
 
-if opt.cuda:
-    netE.cuda()
-    netG.cuda()
-    x = x.cuda()
-    x2=x2.cuda()
-    z, fixed_z = z.cuda(), fixed_z.cuda()
+# for j in range(FID_EVAL_SIZE // opt.batch_size):
+#     populate_x(x, dataloader['train'])
+#
+#     #fake = netG(netg(z2.squeeze()))
+#     for i in range(x.shape[0]):
+#         save_path = '%s/generate_images/images_%d.png' % (opt.save_dir,i+j*opt.batch_size)
+#         vutils.save_image(x[i] / 2 + 0.5, save_path)
 
-x = Variable(x)
-z = Variable(z)
-x2 = Variable(x2)
-fixed_z = Variable(fixed_z)
+# fid_value = fid.calculate_fid_given_paths([STAT_FILE,os.path.join(opt.save_dir,'generate_images')],
+#                                           batch_size=64,dims=2048,cuda=0)
 
-# Setup optimizers
-optimizerE = optim.Adam(netE.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-optimizerG = optim.Adam(netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-#optimizerD = optim.Adam(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-
-
-real_cpu = torch.FloatTensor()
-
-
-def save_images():
-    populate_x(x, dataloader['val'])
-    real_cpu.resize_(x.data.size()).copy_(x.data)
-
-    # Real samples
-    save_path = '%s/real_samples.png' % opt.save_dir
-    vutils.save_image(real_cpu[:64]/2+0.5 , save_path)
-    gex = netG(netE(x))
-    save_path = '%s/reconstructions.png' % (opt.save_dir)
-    grid = vutils.save_image(gex.data[:64] / 2 + 0.5, save_path)
-    #netG.eval()
-    populate_z(z, opt)
-    fake = netG(netg(z.squeeze()))
-
-    # Fake samples
-    save_path = '%s/fake_samples.png' % (opt.save_dir)
-    vutils.save_image(fake.data[:64]/2+0.5 , save_path)
-
-    # Save reconstructions
-    #netE.eval()
-    populate_x(x, dataloader['val'])
-    populate_x(x2, dataloader['val'])
-    alpha = torch.rand(x.shape[0], 1).cuda()
-    alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
-    encode_mix = alpha * netE(x) + (1 - alpha) * netE(x2)
-    if opt.embedding == 'sphere':
-        encode_mix=normalize(encode_mix)
-    x_alpha = netG(encode_mix)
-    save_path = '%s/interpolate_samples.png' % (opt.save_dir)
-    vutils.save_image(x_alpha.data[:64] / 2 + 0.5, save_path)
+#fid_value = fid.calculate_fid_given_paths([STAT_FILE,STAT_FILE],
+                                       #   batch_size=50,dims=2048,cuda=0)
+#print('FID: ', fid_value)
 
 
+config = """
+                      update_cfg: true
+                      GAN_metric:
+                        name: "TFFIDISScore"
+                        tf_fid_stat: "data/tf_fid_stats_cifar10_32.npz"
+                        tf_inception_model_dir: "datasets/tf_inception_model"
+                        num_inception_images: 50000
+        """
+config= EasyDict(yaml.safe_load(config))
+FID_IS_tf = build_GAN_metric(config.GAN_metric)
 
-    #t = torch.FloatTensor(x.size(0) * 2, x.size(1),
-                          #x.size(2), x.size(3))
+class SampleFunc(object):
+    def __init__(self, decoder, z2, noise):
+        self.decoder = decoder
+        self.z2 = z2
+        self.noise = noise
+        pass
 
-    #t[0::2] = x.data[:]
-    #t[1::2] = gex.data[:]
+    def __call__(self, *args, **kwargs):
+        self.z2.data.normal_(0, 1)
+        if self.noise == 'sphere':
+            z = normalize(self.z2, dim=-1)
+            # z = self.z2
+        with torch.no_grad():
+            G_z = self.decoder(z)
 
+        return G_z
 
-    #netG.train()
-    #netE.train()
-
-save_images()
+sample_func = SampleFunc(decoder=netG,  z2=z2, noise=opt.noise)
+FID_tf, IS_mean_tf, IS_std_tf = FID_IS_tf(sample_func=sample_func)
+print(f'IS_mean_tf:{IS_mean_tf:.3f} +- {IS_std_tf:.3f}\n\tFID_tf: {FID_tf:.3f}')

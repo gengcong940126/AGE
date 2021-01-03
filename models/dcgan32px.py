@@ -26,7 +26,7 @@ def _netE(opt):
         
         nn.Conv2d(ndf * 4, nemb, 4, 2, 1, bias=True),
         nn.AvgPool2d(2),
-        #nn.BatchNorm2d(nemb),
+        nn.BatchNorm2d(nemb),
     )
 
     return _netE_Base(opt,main)
@@ -146,7 +146,7 @@ def _netg(opt):
         nn.BatchNorm1d(400),
         nn.ReLU(),
         nn.Linear(400, nemb),
-        #nn.BatchNorm1d(nemb),
+        nn.BatchNorm1d(nemb),
         #nn.Sigmoid()
     #nn.Sigmoid()
     )

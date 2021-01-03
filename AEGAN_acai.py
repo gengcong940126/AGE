@@ -68,13 +68,13 @@ parser.add_argument('--nete_chp', default='',
                     help="path to netE (to continue training)")
 parser.add_argument('--netd_chp', default='',
                     help="path to netd (to continue training)")
-parser.add_argument('--save_dir', default='./results_mnist/AEGAN_acai_z',
+parser.add_argument('--save_dir', default='./results_mnist/AEGAN_acai_noBN',
                     help='folder to output images and model checkpoints')
 parser.add_argument('--criterion', default='param',
                     help='param|nonparam, How to estimate KL')
 parser.add_argument('--KL', default='qp', help='pq|qp')
 parser.add_argument('--noise', default='sphere', help='normal|sphere')
-parser.add_argument('--embedding', default='sphere'
+parser.add_argument('--embedding', default='normal'
                     , help='normal|sphere')
 parser.add_argument('--match_z', default='L2', help='none|L1|L2|cos')
 parser.add_argument('--match_x', default='L1', help='none|L1|L2|cos')
@@ -108,9 +108,9 @@ parser.add_argument(
     help='Update plan for generator <number of updates>;[<term:weight>]'
 )
 opt = parser.parse_args()
-os.makedirs('./results_mnist/AEGAN_acai_z',exist_ok=True)
-os.makedirs('./results_mnist/AEGAN_acai_z/tb',exist_ok=True)
-writer=SummaryWriter(log_dir='./results_mnist/AEGAN_acai_z/tb')
+os.makedirs('./results_mnist/AEGAN_acai_noBN',exist_ok=True)
+os.makedirs('./results_mnist/AEGAN_acai_noBN/tb',exist_ok=True)
+writer=SummaryWriter(log_dir='results_mnist/AEGAN_acai_noBN/tb')
 
 #export CUDA_VISIBLE_DEVICES = 0,1,2
 # Setup cudnn, seed, and parses updates string.
@@ -207,7 +207,7 @@ def save_images(epoch):
     alpha = 0.5 - torch.abs(alpha - 0.5)  # Make interval [0, 0.5]
     encode_mix = alpha * netE(x) + (1 - alpha) * netE(x2)
     if opt.embedding == 'sphere':
-        normalize(encode_mix)
+        encode_mix=normalize(encode_mix)
     x_alpha = netG(encode_mix)
     save_path = '%s/interpolate_samples_epoch_%03d.png' % (opt.save_dir, epoch)
     vutils.save_image(x_alpha.data[:64] / 2 + 0.5, save_path)
@@ -273,10 +273,10 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             x_alpha = netG(encode_mix)
             AE = netG(encode1)
             #populate_z(z, opt)
-            #loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()-opt.reg).pow(2))
-            loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()).pow(2))
-            #loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))-opt.reg).pow(2))+torch.mean(netd(x).pow(2))
-            loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))).pow(2)) + torch.mean(netd(x).pow(2))
+            loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()-opt.reg).pow(2))
+            #loss_disc = torch.mean((netd(x_alpha.detach()) - alpha.squeeze()).pow(2))
+            loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))-opt.reg).pow(2))+torch.mean(netd(x).pow(2))
+            #loss_disc_real = torch.mean((netd(AE.detach() + opt.reg * (x - AE.detach()))).pow(2)) + torch.mean(netd(x).pow(2))
             #loss_ae_disc = torch.mean(torch.square(netd(x_alpha)))
             d_loss=loss_disc+loss_disc_real
             stats['d_loss'] = d_loss
@@ -301,7 +301,7 @@ for epoch in range(opt.start_epoch, opt.nepoch):
             AE_loss=err+loss_ae_disc+loss_ae_real
             stats['AE_loss'] = AE_loss
             stats['err'] = err
-            err.backward()
+            AE_loss.backward()
             optimizerE.step()
             optimizerG.step()
 
